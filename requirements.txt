@@ -1,7 +1,8 @@
-flask
+Flask
 flask-cors
-python-docx
+docx
 docx2pdf
 gspread
 google-auth
 num2words
+json

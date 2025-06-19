@@ -6,7 +6,7 @@ import uuid
 from docx2pdf import convert
 import gspread
 from google.oauth2.service_account import Credentials
-import json  # Necesario para decodificar la variable de entorno
+import json 
 
 app = Flask(__name__)
 CORS(app)
