@@ -212,7 +212,7 @@ app.post("/generar-word", async (req, res) => {
   }
 })
 
-app.listen(3001, () => {
-  console.log("🚀 Servidor de generación de documentos ejecutándose en puerto 3001")
-  console.log("📁 Asegúrate de que el archivo cotizacion_final.docx esté en la carpeta scripts/")
-})
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+    console.log('Servidor Node.js escuchando en puerto ' + PORT);
+});
