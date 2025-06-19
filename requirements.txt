@@ -5,4 +5,3 @@ docx2pdf
 gspread
 google-auth
 num2words
-json
