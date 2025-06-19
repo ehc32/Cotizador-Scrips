@@ -1,6 +1,6 @@
-Flask
+flask
 flask-cors
-docx
+python-docx
 docx2pdf
 gspread
 google-auth
