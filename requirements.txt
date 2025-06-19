@@ -1,0 +1,7 @@
+flask
+flask-cors
+python-docx
+docx2pdf
+gspread
+google-auth
+num2words
