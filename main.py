@@ -113,15 +113,11 @@ def generar_word():
     docx_path = f"cotizacion_{unique_id}.docx"
     doc.save(docx_path)
 
-    pdf_path = docx_path.replace('.docx', '.pdf')
-    convert(docx_path, pdf_path)
-
-    response = send_file(pdf_path, as_attachment=True)
+    response = send_file(docx_path, as_attachment=True)
     @response.call_on_close
     def cleanup():
         try:
             os.remove(docx_path)
-            os.remove(pdf_path)
         except Exception:
             pass
 
