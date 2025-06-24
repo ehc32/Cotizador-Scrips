@@ -7,6 +7,7 @@ from docx2pdf import convert
 import gspread
 from google.oauth2.service_account import Credentials
 import json 
+from docxtpl import DocxTemplate
 
 app = Flask(__name__)
 CORS(app)
@@ -24,7 +25,6 @@ def guardar_en_google_sheets(data):
         "https://www.googleapis.com/auth/drive"
     ]
     
-    # ⚠️ Leer desde variable de entorno
     creds_dict = json.loads(os.environ.get("GOOGLE_CREDENTIALS"))
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
@@ -45,7 +45,6 @@ def guardar_en_google_sheets(data):
 def generar_word():
     data = request.get_json()
 
-    # Valores fijos
     data["Acompañamie"] = "$ 1.516.141"
     data["Diseño_Calculo"] = "$ 23.918.292"
     data["Diseño_Sanitario"] = "$ 20.501.393"
@@ -80,36 +79,10 @@ def generar_word():
     if not os.path.exists(plantilla_path):
         return jsonify({"error": "No se encontró la plantilla Word"}), 500
 
-    doc = Document(plantilla_path)
+    doc = DocxTemplate(plantilla_path)
+    doc.render(data)
 
-    def replace_in_table(table, data):
-        for row in table.rows:
-            for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    full_text = paragraph.text
-                    for key, value in data.items():
-                        full_text = full_text.replace(f"$({key})", str(value))
-                        full_text = full_text.replace(f"${{{key}}}", str(value))
-                        full_text = full_text.replace(f"{{{key}}}", str(value))
-                    if paragraph.runs:
-                        paragraph.runs[0].text = full_text
-                        for run in paragraph.runs[1:]:
-                            run.text = ''
-
-    for table in doc.tables:
-        replace_in_table(table, data)
-
-    for paragraph in doc.paragraphs:
-        full_text = paragraph.text
-        for key, value in data.items():
-            full_text = full_text.replace(f"$({key})", str(value))
-            full_text = full_text.replace(f"${{{key}}}", str(value))
-            full_text = full_text.replace(f"{{{key}}}", str(value))
-        if paragraph.runs:
-            paragraph.runs[0].text = full_text
-            for run in paragraph.runs[1:]:
-   
-                      unique_id = str(uuid.uuid4())
+    unique_id = str(uuid.uuid4())
     docx_path = f"cotizacion_{unique_id}.docx"
     doc.save(docx_path)
 
