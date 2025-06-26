@@ -20,96 +20,164 @@ def numero_a_texto(numero):
         return str(numero)
 
 def guardar_en_google_sheets(data):
-    scope = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
+    try:
+        scope = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        
+        creds_dict = json.loads(os.environ.get("GOOGLE_CREDENTIALS"))
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        client = gspread.authorize(creds)
+
+        sheet = client.open_by_key("1qWXMepGrgxjZK9QLPxcLcCDlHtsLBIH9Fo0GJDgr_Go").sheet1  
+
+        fila = [
+            data.get("nombre", ""),
+            data.get("correo", ""),
+            data.get("Subtotal_1", ""),
+            data.get("Subtotal_2", ""),
+            data.get("Total", ""),
+            data.get("texto", "")
+        ]
+        sheet.append_row(fila)
+    except Exception as e:
+        print(f"Error al guardar en Google Sheets: {e}")
+
+def convertir_a_pdf(docx_path, pdf_path):
+    """Convierte un archivo DOCX a PDF usando diferentes métodos"""
     
-    creds_dict = json.loads(os.environ.get("GOOGLE_CREDENTIALS"))
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-    client = gspread.authorize(creds)
-
-    sheet = client.open_by_key("1qWXMepGrgxjZK9QLPxcLcCDlHtsLBIH9Fo0GJDgr_Go").sheet1  
-
-    fila = [
-        data.get("nombre", ""),
-        data.get("correo", ""),
-        data.get("Subtotal_1", ""),
-        data.get("Subtotal_2", ""),
-        data.get("Total", ""),
-        data.get("texto", "")
-    ]
-    sheet.append_row(fila)
+    # Método 1: LibreOffice (si está disponible)
+    try:
+        result = subprocess.run([
+            "soffice", "--headless", "--convert-to", "pdf", docx_path, 
+            "--outdir", os.path.dirname(docx_path)
+        ], check=True, timeout=30, capture_output=True)
+        
+        if os.path.exists(pdf_path):
+            return True
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"LibreOffice no disponible o falló: {e}")
+    
+    # Método 2: Unoconv (alternativa)
+    try:
+        result = subprocess.run([
+            "unoconv", "-f", "pdf", docx_path
+        ], check=True, timeout=30, capture_output=True)
+        
+        if os.path.exists(pdf_path):
+            return True
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"Unoconv no disponible o falló: {e}")
+    
+    # Método 3: Pandoc (si está disponible)
+    try:
+        result = subprocess.run([
+            "pandoc", docx_path, "-o", pdf_path
+        ], check=True, timeout=30, capture_output=True)
+        
+        if os.path.exists(pdf_path):
+            return True
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"Pandoc no disponible o falló: {e}")
+    
+    return False
 
 @app.route('/generar-word', methods=['POST'])
 def generar_word():
-    data = request.get_json()
-
-    data["Acompañamie"] = "$ 1.516.141"
-    data["Diseño_Calculo"] = "$ 23.918.292"
-    data["Diseño_Sanitario"] = "$ 20.501.393"
-
-    def extraer_numero(texto):
-        if not texto:
-            return 0
-        return int(''.join(filter(str.isdigit, str(texto))) or 0)
-
-    def formatear_moneda(numero):
-        return "${:,.0f}".format(numero).replace(",", ".")
-
-    subtotal1 = extraer_numero(data.get("Subtotal_1")) or (
-        extraer_numero(data.get("Diseño_Ar")) +
-        extraer_numero(data.get("Diseño_Calculo")) +
-        extraer_numero(data.get("Acompañamie"))
-    )
-    subtotal2 = extraer_numero(data.get("Subtotal_2")) or (
-        extraer_numero(data.get("Diseño_Calculo")) +
-        extraer_numero(data.get("Diseño_Sanitario")) +
-        extraer_numero(data.get("Presupuesta"))
-    )
-    total = subtotal1 + subtotal2
-    data["Subtotal_1"] = formatear_moneda(subtotal1)
-    data["Subtotal_2"] = formatear_moneda(subtotal2)
-    data["Total"] = formatear_moneda(total)
-    data["texto"] = numero_a_texto(total)
-
-    guardar_en_google_sheets(data)
-
-    plantilla_path = os.path.join(os.path.dirname(__file__), "plantilla.docx")
-    if not os.path.exists(plantilla_path):
-        return jsonify({"error": "No se encontró la plantilla Word"}), 500
-
-    doc = DocxTemplate(plantilla_path)
-    doc.render(data)
-
-    unique_id = str(uuid.uuid4())
-    docx_path = f"cotizacion_{unique_id}.docx"
-    doc.save(docx_path)
-
-    pdf_path = f"cotizacion_{unique_id}.pdf"
-    pdf_full_path = os.path.join(os.path.dirname(docx_path), pdf_path)
     try:
-        subprocess.run([
-            "soffice", "--headless", "--convert-to", "pdf", docx_path, 
-            "--outdir", os.path.dirname(docx_path)
-        ], check=True, timeout=30)
-        if not os.path.exists(pdf_full_path):
-            raise Exception("La conversión a PDF falló.")
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No se recibieron datos"}), 400
+
+        data["Acompañamie"] = "$ 1.516.141"
+        data["Diseño_Calculo"] = "$ 23.918.292"
+        data["Diseño_Sanitario"] = "$ 20.501.393"
+
+        def extraer_numero(texto):
+            if not texto:
+                return 0
+            return int(''.join(filter(str.isdigit, str(texto))) or 0)
+
+        def formatear_moneda(numero):
+            return "${:,.0f}".format(numero).replace(",", ".")
+
+        subtotal1 = extraer_numero(data.get("Subtotal_1")) or (
+            extraer_numero(data.get("Diseño_Ar")) +
+            extraer_numero(data.get("Diseño_Calculo")) +
+            extraer_numero(data.get("Acompañamie"))
+        )
+        subtotal2 = extraer_numero(data.get("Subtotal_2")) or (
+            extraer_numero(data.get("Diseño_Calculo")) +
+            extraer_numero(data.get("Diseño_Sanitario")) +
+            extraer_numero(data.get("Presupuesta"))
+        )
+        total = subtotal1 + subtotal2
+        data["Subtotal_1"] = formatear_moneda(subtotal1)
+        data["Subtotal_2"] = formatear_moneda(subtotal2)
+        data["Total"] = formatear_moneda(total)
+        data["texto"] = numero_a_texto(total)
+
+        guardar_en_google_sheets(data)
+
+        plantilla_path = os.path.join(os.path.dirname(__file__), "plantilla.docx")
+        if not os.path.exists(plantilla_path):
+            return jsonify({"error": "No se encontró la plantilla Word"}), 500
+
+        doc = DocxTemplate(plantilla_path)
+        doc.render(data)
+
+        unique_id = str(uuid.uuid4())
+        docx_path = f"cotizacion_{unique_id}.docx"
+        pdf_path = f"cotizacion_{unique_id}.pdf"
+        
+        # Guardar el documento Word
+        doc.save(docx_path)
+        
+        # Intentar convertir a PDF
+        pdf_converted = convertir_a_pdf(docx_path, pdf_path)
+        
+        if pdf_converted and os.path.exists(pdf_path):
+            # Enviar PDF
+            response = send_file(pdf_path, as_attachment=True, download_name=pdf_path)
+            
+            @response.call_on_close
+            def cleanup():
+                try:
+                    if os.path.exists(docx_path):
+                        os.remove(docx_path)
+                    if os.path.exists(pdf_path):
+                        os.remove(pdf_path)
+                except Exception as e:
+                    print(f"Error en cleanup: {e}")
+            
+            return response
+        else:
+            # Si no se puede convertir a PDF, enviar el DOCX
+            response = send_file(docx_path, as_attachment=True, download_name=docx_path)
+            
+            @response.call_on_close
+            def cleanup():
+                try:
+                    if os.path.exists(docx_path):
+                        os.remove(docx_path)
+                except Exception as e:
+                    print(f"Error en cleanup: {e}")
+            
+            return response
+
     except Exception as e:
-        os.remove(docx_path)  
-        return jsonify({"error": f"Error al convertir a PDF: {str(e)}"}), 500
-
-    response = send_file(pdf_full_path, as_attachment=True, download_name=pdf_path)
-
-    @response.call_on_close
-    def cleanup():
+        # Limpiar archivos en caso de error
         try:
-            os.remove(docx_path)
-            os.remove(pdf_full_path)
-        except Exception:
+            if 'docx_path' in locals() and os.path.exists(docx_path):
+                os.remove(docx_path)
+            if 'pdf_path' in locals() and os.path.exists(pdf_path):
+                os.remove(pdf_path)
+        except:
             pass
-
-    return response
+        
+        print(f"Error en generar_word: {e}")
+        return jsonify({"error": f"Error interno del servidor: {str(e)}"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
