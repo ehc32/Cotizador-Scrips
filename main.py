@@ -191,20 +191,15 @@ def generar_word():
             
             return response
         else:
-            # Si no se puede convertir a PDF, enviar el DOCX
-            print(f"No se pudo convertir a PDF. Enviando documento Word: {docx_path}")
-            response = send_file(docx_path, as_attachment=True, download_name=docx_path)
-            
-            @response.call_on_close
-            def cleanup():
-                try:
-                    if os.path.exists(docx_path):
-                        os.remove(docx_path)
-                        print(f"Archivo DOCX eliminado: {docx_path}")
-                except Exception as e:
-                    print(f"Error en cleanup: {e}")
-            
-            return response
+            # Si no se puede convertir a PDF, devuelve error y nunca envía el Word
+            print("No se pudo convertir a PDF. No se enviará el Word.")
+            try:
+                if os.path.exists(docx_path):
+                    os.remove(docx_path)
+                    print(f"Archivo DOCX eliminado: {docx_path}")
+            except Exception as e:
+                print(f"Error en cleanup: {e}")
+            return jsonify({"error": "No se pudo convertir el documento a PDF. Por favor, revisa la instalación de LibreOffice, Unoconv o Pandoc en el servidor."}), 500
 
     except Exception as e:
         # Limpiar archivos en caso de error
