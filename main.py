@@ -3,7 +3,7 @@ from flask_cors import CORS
 from docx import Document
 import os
 import uuid
-from docx2pdf import convert
+import subprocess
 import gspread
 from google.oauth2.service_account import Credentials
 import json 
@@ -86,11 +86,26 @@ def generar_word():
     docx_path = f"cotizacion_{unique_id}.docx"
     doc.save(docx_path)
 
-    response = send_file(docx_path, as_attachment=True)
+    pdf_path = f"cotizacion_{unique_id}.pdf"
+    pdf_full_path = os.path.join(os.path.dirname(docx_path), pdf_path)
+    try:
+        subprocess.run([
+            "soffice", "--headless", "--convert-to", "pdf", docx_path, 
+            "--outdir", os.path.dirname(docx_path)
+        ], check=True, timeout=30)
+        if not os.path.exists(pdf_full_path):
+            raise Exception("La conversión a PDF falló.")
+    except Exception as e:
+        os.remove(docx_path)  
+        return jsonify({"error": f"Error al convertir a PDF: {str(e)}"}), 500
+
+    response = send_file(pdf_full_path, as_attachment=True, download_name=pdf_path)
+
     @response.call_on_close
     def cleanup():
         try:
             os.remove(docx_path)
+            os.remove(pdf_full_path)
         except Exception:
             pass
 
