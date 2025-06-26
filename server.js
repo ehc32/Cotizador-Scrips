@@ -121,7 +121,7 @@ async function guardarEnGoogleSheets(data) {
   ];
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: "Sheet1",
+    range: "Hoja 1",
     valueInputOption: "USER_ENTERED",
     resource: { values: [fila] },
   });
