@@ -131,7 +131,15 @@ app.post("/generar-word", async (req, res) => {
   try {
     const data = req.body
 
-    // Asignar los mismos valores fijos que en Python
+    // Agregar fecha actual en formato '25 de junio de 2025'
+    const meses = [
+      "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+    ];
+    const hoy = new Date();
+    const dia = hoy.getDate();
+    const mes = meses[hoy.getMonth()];
+    const anio = hoy.getFullYear();
+    data["fecha"] = `${dia} de ${mes} de ${anio}`;
     data["Acompañamie"] = "$ 1.516.141"
     data["Diseño_Calculo"] = "$ 23.918.292"
     data["Diseño_Sanitario"] = "$ 20.501.393"
@@ -192,7 +200,7 @@ app.post("/generar-word", async (req, res) => {
     doc.render()
 
     const buf = doc.getZip().generate({ type: "nodebuffer" })
-    const filename = `cotizacion_${Date.now()}.docx`
+    const filename = `cotizacion_${Date.now()}.pdf`
     const filepath = path.join(__dirname, filename)
 
     fs.writeFileSync(filepath, buf)
