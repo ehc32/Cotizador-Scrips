@@ -5,6 +5,9 @@ const path = require("path")
 const PizZip = require("pizzip")
 const Docxtemplater = require("docxtemplater")
 const { google } = require("googleapis")
+const mammoth = require("mammoth")
+const puppeteer = require("puppeteer")
+
 require('dotenv').config();
 
 const app = express()
@@ -200,20 +203,35 @@ app.post("/generar-word", async (req, res) => {
     doc.render()
 
     const buf = doc.getZip().generate({ type: "nodebuffer" })
-    const filename = `cotizacion_${Date.now()}.pdf`
-    const filepath = path.join(__dirname, filename)
+    const docxFilename = `cotizacion_${Date.now()}.docx`
+    const docxFilepath = path.join(__dirname, docxFilename)
+    fs.writeFileSync(docxFilepath, buf)
 
-    fs.writeFileSync(filepath, buf)
+    // Convertir DOCX a HTML con mammoth
+    const { value: html } = await mammoth.convertToHtml({ path: docxFilepath });
 
-    res.download(filepath, filename, (err) => {
+    // Convertir HTML a PDF con puppeteer
+    const pdfFilename = docxFilename.replace('.docx', '.pdf');
+    const pdfFilepath = path.join(__dirname, pdfFilename);
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    await page.pdf({ path: pdfFilepath, format: "A4" });
+    await browser.close();
+
+    // Eliminar el archivo DOCX temporal
+    try { fs.unlinkSync(docxFilepath); } catch (e) { console.error("Error limpiando DOCX temporal:", e); }
+
+    // Descargar el PDF generado
+    res.download(pdfFilepath, pdfFilename, (err) => {
       if (err) {
-        console.error("Error enviando archivo:", err)
+        console.error("Error enviando archivo PDF:", err)
       }
-      // Limpiar archivo temporal
+      // Limpiar archivo PDF temporal
       try {
-        fs.unlinkSync(filepath)
+        fs.unlinkSync(pdfFilepath)
       } catch (cleanupErr) {
-        console.error("Error limpiando archivo temporal:", cleanupErr)
+        console.error("Error limpiando archivo PDF temporal:", cleanupErr)
       }
     })
   } catch (error) {
