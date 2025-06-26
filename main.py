@@ -47,40 +47,73 @@ def guardar_en_google_sheets(data):
 def convertir_a_pdf(docx_path, pdf_path):
     """Convierte un archivo DOCX a PDF usando diferentes métodos"""
     
-    # Método 1: LibreOffice (si está disponible)
+    print(f"Intentando convertir {docx_path} a PDF...")
+    
+    # Método 1: LibreOffice (método principal)
     try:
+        print("Intentando con LibreOffice...")
         result = subprocess.run([
             "soffice", "--headless", "--convert-to", "pdf", docx_path, 
             "--outdir", os.path.dirname(docx_path)
-        ], check=True, timeout=30, capture_output=True)
+        ], check=True, timeout=60, capture_output=True, text=True)
         
+        print(f"LibreOffice output: {result.stdout}")
         if os.path.exists(pdf_path):
+            print(f"PDF creado exitosamente: {pdf_path}")
             return True
+        else:
+            print("LibreOffice no creó el archivo PDF")
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"LibreOffice no disponible o falló: {e}")
+        print(f"LibreOffice falló: {e}")
     
     # Método 2: Unoconv (alternativa)
     try:
+        print("Intentando con unoconv...")
         result = subprocess.run([
-            "unoconv", "-f", "pdf", docx_path
-        ], check=True, timeout=30, capture_output=True)
+            "unoconv", "-f", "pdf", "-o", os.path.dirname(docx_path), docx_path
+        ], check=True, timeout=60, capture_output=True, text=True)
         
+        print(f"Unoconv output: {result.stdout}")
         if os.path.exists(pdf_path):
+            print(f"PDF creado exitosamente con unoconv: {pdf_path}")
             return True
+        else:
+            print("Unoconv no creó el archivo PDF")
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"Unoconv no disponible o falló: {e}")
+        print(f"Unoconv falló: {e}")
     
     # Método 3: Pandoc (si está disponible)
     try:
+        print("Intentando con pandoc...")
         result = subprocess.run([
             "pandoc", docx_path, "-o", pdf_path
-        ], check=True, timeout=30, capture_output=True)
+        ], check=True, timeout=60, capture_output=True, text=True)
         
+        print(f"Pandoc output: {result.stdout}")
         if os.path.exists(pdf_path):
+            print(f"PDF creado exitosamente con pandoc: {pdf_path}")
+            return True
+        else:
+            print("Pandoc no creó el archivo PDF")
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"Pandoc falló: {e}")
+    
+    # Método 4: Intentar con ruta absoluta de LibreOffice
+    try:
+        print("Intentando con ruta absoluta de LibreOffice...")
+        result = subprocess.run([
+            "/usr/bin/soffice", "--headless", "--convert-to", "pdf", docx_path, 
+            "--outdir", os.path.dirname(docx_path)
+        ], check=True, timeout=60, capture_output=True, text=True)
+        
+        print(f"LibreOffice (ruta absoluta) output: {result.stdout}")
+        if os.path.exists(pdf_path):
+            print(f"PDF creado exitosamente: {pdf_path}")
             return True
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"Pandoc no disponible o falló: {e}")
+        print(f"LibreOffice (ruta absoluta) falló: {e}")
     
+    print("Todos los métodos de conversión fallaron")
     return False
 
 @app.route('/generar-word', methods=['POST'])
@@ -133,12 +166,15 @@ def generar_word():
         
         # Guardar el documento Word
         doc.save(docx_path)
+        print(f"Documento Word guardado: {docx_path}")
         
         # Intentar convertir a PDF
+        print("Iniciando conversión a PDF...")
         pdf_converted = convertir_a_pdf(docx_path, pdf_path)
         
         if pdf_converted and os.path.exists(pdf_path):
             # Enviar PDF
+            print(f"Enviando PDF: {pdf_path}")
             response = send_file(pdf_path, as_attachment=True, download_name=pdf_path)
             
             @response.call_on_close
@@ -146,14 +182,17 @@ def generar_word():
                 try:
                     if os.path.exists(docx_path):
                         os.remove(docx_path)
+                        print(f"Archivo DOCX eliminado: {docx_path}")
                     if os.path.exists(pdf_path):
                         os.remove(pdf_path)
+                        print(f"Archivo PDF eliminado: {pdf_path}")
                 except Exception as e:
                     print(f"Error en cleanup: {e}")
             
             return response
         else:
             # Si no se puede convertir a PDF, enviar el DOCX
+            print(f"No se pudo convertir a PDF. Enviando documento Word: {docx_path}")
             response = send_file(docx_path, as_attachment=True, download_name=docx_path)
             
             @response.call_on_close
@@ -161,6 +200,7 @@ def generar_word():
                 try:
                     if os.path.exists(docx_path):
                         os.remove(docx_path)
+                        print(f"Archivo DOCX eliminado: {docx_path}")
                 except Exception as e:
                     print(f"Error en cleanup: {e}")
             
